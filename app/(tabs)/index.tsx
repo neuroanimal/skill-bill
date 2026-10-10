@@ -1,14 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Accelerometer, Gyroscope, Magnetometer } from 'expo-sensors';
-import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
+import Svg, { Polyline, Line, Circle } from 'react-native-svg';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const MAX_SAMPLES = 50;
 const GRAPH_WIDTH = 320;
-const GRAPH_HEIGHT = 120;
-const PROJ_SIZE = 140;
+const GRAPH_HEIGHT = 100;
+const PROJ_SIZE = 120;
 
 type Vector3 = { x: number; y: number; z: number };
+
+type SampleRecord = {
+  timestamp: number;
+  ax: number; ay: number; az: number;
+  gx: number; gy: number; gz: number;
+  mx: number; my: number; mz: number;
+};
 
 export default function HomeScreen() {
   const [accel, setAccel] = useState<Vector3>({ x: 0, y: 0, z: -1 });
@@ -19,22 +28,34 @@ export default function HomeScreen() {
   const [gyroHist, setGyroHist] = useState<Vector3[]>([]);
   const [magHist, setMagHist] = useState<Vector3[]>([]);
 
+  // Nagrywanie i bufor
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordCount, setRecordCount] = useState(0);
+  const recordedDataRef = useRef<SampleRecord[]>([]);
+
+  const latestAccel = useRef<Vector3>({ x: 0, y: 0, z: 0 });
+  const latestGyro = useRef<Vector3>({ x: 0, y: 0, z: 0 });
+  const latestMag = useRef<Vector3>({ x: 0, y: 0, z: 0 });
+
   useEffect(() => {
-    Accelerometer.setUpdateInterval(40);
-    Gyroscope.setUpdateInterval(40);
-    Magnetometer.setUpdateInterval(40);
+    Accelerometer.setUpdateInterval(50);
+    Gyroscope.setUpdateInterval(50);
+    Magnetometer.setUpdateInterval(50);
 
     const accelSub = Accelerometer.addListener((data) => {
+      latestAccel.current = data;
       setAccel(data);
       setAccelHist((prev) => [...prev.slice(-MAX_SAMPLES), data]);
     });
 
     const gyroSub = Gyroscope.addListener((data) => {
+      latestGyro.current = data;
       setGyro(data);
       setGyroHist((prev) => [...prev.slice(-MAX_SAMPLES), data]);
     });
 
     const magSub = Magnetometer.addListener((data) => {
+      latestMag.current = data;
       setMag(data);
       setMagHist((prev) => [...prev.slice(-MAX_SAMPLES), data]);
     });
@@ -46,7 +67,75 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // --- RYSOWANIE OSCYLOSKOPU ---
+  // Interwał zapisu próbek podczas nagrywania (20 Hz)
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isRecording) {
+      interval = setInterval(() => {
+        const sample: SampleRecord = {
+          timestamp: Date.now(),
+          ax: latestAccel.current.x,
+          ay: latestAccel.current.y,
+          az: latestAccel.current.z,
+          gx: latestGyro.current.x,
+          gy: latestGyro.current.y,
+          gz: latestGyro.current.z,
+          mx: latestMag.current.x,
+          my: latestMag.current.y,
+          mz: latestMag.current.z,
+        };
+        recordedDataRef.current.push(sample);
+        setRecordCount(recordedDataRef.current.length);
+      }, 50);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording]);
+
+  const toggleRecording = () => {
+    if (!isRecording) {
+      recordedDataRef.current = [];
+      setRecordCount(0);
+      setIsRecording(true);
+    } else {
+      setIsRecording(false);
+    }
+  };
+
+  const saveAndShareCSV = async () => {
+    if (recordedDataRef.current.length === 0) {
+      Alert.alert('Brak danych', 'Najpierw nagraj sesję przyciskiem START.');
+      return;
+    }
+
+    try {
+      let csvContent = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n';
+      recordedDataRef.current.forEach((r) => {
+        csvContent += `${r.timestamp},${r.ax.toFixed(4)},${r.ay.toFixed(4)},${r.az.toFixed(4)},${r.gx.toFixed(4)},${r.gy.toFixed(4)},${r.gz.toFixed(4)},${r.mx.toFixed(2)},${r.my.toFixed(2)},${r.mz.toFixed(2)}\n`;
+      });
+
+      const fileName = `imu_session_${Date.now()}.csv`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Eksportuj dane IMU',
+          UTI: 'public.comma-separated-values-text',
+        });
+      } else {
+        Alert.alert('Zapisano plik', `Lokalizacja:\n${fileUri}`);
+      }
+    } catch (err) {
+      Alert.alert('Błąd zapisu', String(err));
+    }
+  };
+
   const renderOscilloscope = (history: Vector3[], scaleMax: number) => {
     if (history.length === 0) return null;
     const step = GRAPH_WIDTH / (MAX_SAMPLES - 1);
@@ -64,9 +153,7 @@ export default function HomeScreen() {
 
     return (
       <Svg height={GRAPH_HEIGHT} width={GRAPH_WIDTH}>
-        {/* Oś zerowa */}
         <Line x1="0" y1={midY} x2={GRAPH_WIDTH} y2={midY} stroke="#334155" strokeDasharray="4" strokeWidth="1" />
-        {/* Przebiegi osiowe */}
         <Polyline points={pointsForAxis('x')} fill="none" stroke="#ef4444" strokeWidth="2" />
         <Polyline points={pointsForAxis('y')} fill="none" stroke="#22c55e" strokeWidth="2" />
         <Polyline points={pointsForAxis('z')} fill="none" stroke="#3b82f6" strokeWidth="2" />
@@ -74,32 +161,25 @@ export default function HomeScreen() {
     );
   };
 
-  // --- RZUT PUNKTU / WEKTORA 3D NA PŁASZCZYZNĘ 2D (Izometria) ---
   const render3DProjection = (v: Vector3, scale: number, label: string) => {
     const cx = PROJ_SIZE / 2;
     const cy = PROJ_SIZE / 2;
 
-    // Prosta projekcja izometryczna 3D -> 2D
-    // X skręca w lewo-dół, Y w prawo-dół, Z idzie pionowo w górę
     const projX = cx + (v.y - v.x) * Math.cos(Math.PI / 6) * scale;
     const projY = cy + (v.y + v.x) * Math.sin(Math.PI / 6) * scale - v.z * scale;
 
-    const clampedX = Math.max(10, Math.min(PROJ_SIZE - 10, projX));
-    const clampedY = Math.max(10, Math.min(PROJ_SIZE - 10, projY));
+    const clampedX = Math.max(8, Math.min(PROJ_SIZE - 8, projX));
+    const clampedY = Math.max(8, Math.min(PROJ_SIZE - 8, projY));
 
     return (
       <View style={styles.projContainer}>
         <Text style={styles.projTitle}>{label}</Text>
         <Svg height={PROJ_SIZE} width={PROJ_SIZE}>
-          {/* Osie odniesienia 3D w środku */}
-          <Line x1={cx} y1={cy} x2={cx - 30} y2={cy + 17} stroke="#ef4444" strokeWidth="1" />
-          <Line x1={cx} y1={cy} x2={cx + 30} y2={cy + 17} stroke="#22c55e" strokeWidth="1" />
-          <Line x1={cx} y1={cy} x2={cx} y2={cy - 35} stroke="#3b82f6" strokeWidth="1" />
-
-          {/* Wektor od środka do punktu */}
+          <Line x1={cx} y1={cy} x2={cx - 25} y2={cy + 14} stroke="#ef4444" strokeWidth="1" />
+          <Line x1={cx} y1={cy} x2={cx + 25} y2={cy + 14} stroke="#22c55e" strokeWidth="1" />
+          <Line x1={cx} y1={cy} x2={cx} y2={cy - 30} stroke="#3b82f6" strokeWidth="1" />
           <Line x1={cx} y1={cy} x2={clampedX} y2={clampedY} stroke="#f59e0b" strokeWidth="2" />
-          {/* Punkt końcowy w przestrzeni */}
-          <Circle cx={clampedX} cy={clampedY} r="5" fill="#f59e0b" />
+          <Circle cx={clampedX} cy={clampedY} r="4" fill="#f59e0b" />
         </Svg>
       </View>
     );
@@ -110,15 +190,34 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.badge}>KROK 2.2 / 10</Text>
-        <Text style={styles.title}>Pełna Telemetria IMU</Text>
-        <Text style={styles.subtitle}>Oscyloskopy osiowe & Rzuty 3D dla 3 sensorów</Text>
+        <Text style={styles.badge}>KROK 3.1 & 3.2 / 10</Text>
+        <Text style={styles.title}>Rejestracja i Eksport CSV</Text>
 
-        {/* --- 1. G-FORCE / AKCELEROMETR --- */}
+        {/* --- PRZYCISKI STEROWANIA --- */}
+        <View style={styles.controlBox}>
+          <TouchableOpacity
+            style={[styles.btn, isRecording ? styles.btnStop : styles.btnStart]}
+            onPress={toggleRecording}
+          >
+            <Text style={styles.btnText}>
+              {isRecording ? `🛑 STOP (${recordCount} próbek)` : '▶ START NAGRYWANIA'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.btn, styles.btnShare, isRecording && styles.btnDisabled]}
+            onPress={saveAndShareCSV}
+            disabled={isRecording}
+          >
+            <Text style={styles.btnText}>📁 ZAPISZ I UDOSTĘPNIJ CSV</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* --- 1. AKCELEROMETR --- */}
         <View style={styles.card}>
           <Text style={styles.cardHeader}>📐 Akcelerometr (G-Force)</Text>
           <View style={styles.row}>
-            {render3DProjection(accel, 25, 'Rzut 3D (g)')}
+            {render3DProjection(accel, 20, 'Rzut (g)')}
             <View style={styles.oscBox}>
               <View style={styles.legend}>
                 <Text style={{ color: '#ef4444' }}>X:{fmt(accel.x)}</Text>
@@ -134,7 +233,7 @@ export default function HomeScreen() {
         <View style={styles.card}>
           <Text style={styles.cardHeader}>🔄 Żyroskop (Prędkość Kątowa)</Text>
           <View style={styles.row}>
-            {render3DProjection(gyro, 8, 'Rzut 3D (rad/s)')}
+            {render3DProjection(gyro, 6, 'Rzut (rad/s)')}
             <View style={styles.oscBox}>
               <View style={styles.legend}>
                 <Text style={{ color: '#ef4444' }}>X:{fmt(gyro.x)}</Text>
@@ -150,7 +249,7 @@ export default function HomeScreen() {
         <View style={styles.card}>
           <Text style={styles.cardHeader}>🧲 Magnetometr (Pole Magnetyczne)</Text>
           <View style={styles.row}>
-            {render3DProjection(mag, 0.8, 'Rzut 3D (μT)')}
+            {render3DProjection(mag, 0.6, 'Rzut (μT)')}
             <View style={styles.oscBox}>
               <View style={styles.legend}>
                 <Text style={{ color: '#ef4444' }}>X:{fmt(mag.x)}</Text>
@@ -161,7 +260,6 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -171,36 +269,42 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0b0f19' },
   scroll: { padding: 12, alignItems: 'center' },
   badge: { color: '#38bdf8', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  title: { color: '#f8fafc', fontSize: 20, fontWeight: 'bold' },
-  subtitle: { color: '#64748b', fontSize: 12, marginBottom: 12 },
+  title: { color: '#f8fafc', fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
+  controlBox: { width: '100%', marginBottom: 14, gap: 8 },
+  btn: { paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  btnStart: { backgroundColor: '#16a34a' },
+  btnStop: { backgroundColor: '#dc2626' },
+  btnShare: { backgroundColor: '#0284c7' },
+  btnDisabled: { opacity: 0.4 },
+  btnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 13 },
   card: {
     width: '100%',
     backgroundColor: '#1e293b',
     borderRadius: 12,
     padding: 10,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#334155',
   },
-  cardHeader: { color: '#f8fafc', fontSize: 14, fontWeight: 'bold', marginBottom: 8 },
+  cardHeader: { color: '#f8fafc', fontSize: 14, fontWeight: 'bold', marginBottom: 6 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   projContainer: {
     width: PROJ_SIZE,
-    height: PROJ_SIZE + 15,
+    height: PROJ_SIZE + 10,
     backgroundColor: '#090d16',
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  projTitle: { color: '#94a3b8', fontSize: 10, position: 'absolute', top: 4, fontWeight: '600' },
+  projTitle: { color: '#94a3b8', fontSize: 9, position: 'absolute', top: 3, fontWeight: '600' },
   oscBox: { flex: 1, marginLeft: 8, alignItems: 'center' },
   legend: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginBottom: 4,
+    marginBottom: 2,
     fontFamily: 'Courier',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 'bold',
   },
 });
