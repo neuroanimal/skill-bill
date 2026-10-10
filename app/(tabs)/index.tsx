@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Accelerometer, Gyroscope, Magnetometer } from 'expo-sensors';
 import Svg, { Polyline, Line, Circle } from 'react-native-svg';
-import { Directory, File } from 'expo-file-system/next';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 const MAX_SAMPLES = 50;
@@ -110,24 +110,21 @@ export default function HomeScreen() {
     }
 
     try {
-      // 1. Budowanie treści CSV
+      // 1. Nagłówek i dane CSV
       let csvContent = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n';
       recordedDataRef.current.forEach((r) => {
         csvContent += `${r.timestamp},${r.ax.toFixed(4)},${r.ay.toFixed(4)},${r.az.toFixed(4)},${r.gx.toFixed(4)},${r.gy.toFixed(4)},${r.gz.toFixed(4)},${r.mx.toFixed(2)},${r.my.toFixed(2)},${r.mz.toFixed(2)}\n`;
       });
 
-      // 2. Ścieżka katalogu i pliku
+      // 2. Bezpieczne określenie ścieżki pliku
+      const docDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
       const fileName = `imu_session_${Date.now()}.csv`;
-      // Pobieramy URI katalogu dokumentów z wyeliminowaniem błędów undefined
-      const dirUri = Directory.document.uri;
-      const fileUri = `${dirUri}${fileName}`;
+      const fileUri = `${docDir}${fileName}`;
 
-      // 3. Utworzenie i zapis pliku
-      const file = new File(Directory.document, fileName);
-      file.create();
-      file.write(csvContent);
+      // 3. Zapis pliku (bez przekazywania opcji encoding, aby uniknąć błędów undefined)
+      await FileSystem.writeAsStringAsync(fileUri, csvContent);
 
-      // 4. Udostępnienie pliku przez pewny `fileUri`
+      // 4. Wywołanie natywnego Share Sheet
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
           mimeType: 'text/csv',
@@ -141,7 +138,7 @@ export default function HomeScreen() {
       Alert.alert('Błąd zapisu', String(err));
     }
   };
- 
+
   const renderOscilloscope = (history: Vector3[], scaleMax: number) => {
     if (history.length === 0) return null;
     const step = GRAPH_WIDTH / (MAX_SAMPLES - 1);
@@ -306,7 +303,7 @@ const styles = StyleSheet.create({
   oscBox: { flex: 1, marginLeft: 8, alignItems: 'center' },
   legend: {
     flexDirection: 'row',
-    justifyContent: 'space-around', // <-- tutaj była kropka zamiast dwukropka i wielkiej litery C
+    justifyContent: 'space-around',
     width: '100%',
     marginBottom: 2,
     fontFamily: 'Courier',
