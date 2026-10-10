@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   oscBox: { flex: 1, marginLeft: 8, alignItems: 'center' },
   legend: {
     flexDirection: 'row',
-    justify.content: 'space-around',
+    justifyContent: 'space-around', // <-- tutaj była kropka zamiast dwukropka i wielkiej litery C
     width: '100%',
     marginBottom: 2,
     fontFamily: 'Courier',
