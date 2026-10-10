@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Accelerometer, Gyroscope, Magnetometer } from 'expo-sensors';
 import Svg, { Polyline, Line, Circle } from 'react-native-svg';
-import * as FileSystem from 'expo-file-system';
+import { Directory, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 const MAX_SAMPLES = 50;
@@ -102,9 +102,6 @@ export default function HomeScreen() {
       setIsRecording(false);
     }
   };
-
-import { Directory, File } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 
 // ... reszta komponentu ...
 
