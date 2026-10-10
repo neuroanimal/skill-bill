@@ -1,40 +1,68 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, ScrollView } from 'react-native';
+import { Accelerometer, Gyroscope, Magnetometer } from 'expo-sensors';
 
 export default function HomeScreen() {
-  const [count, setCount] = useState(0);
-  const [time, setTime] = useState(new Date().toLocaleTimeString());
+  const [{ x: ax, y: ay, z: az }, setAccelData] = useState({ x: 0, y: 0, z: 0 });
+  const [{ x: gx, y: gy, z: gz }, setGyroData] = useState({ x: 0, y: 0, z: 0 });
+  const [{ x: mx, y: my, z: mz }, setMagData] = useState({ x: 0, y: 0, z: 0 });
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTime(new Date().toLocaleTimeString());
-    }, 1000);
-    return () => clearInterval(timer);
+    // Częstotliwość odświeżania: co 100 ms (10 razy na sekundę)
+    Accelerometer.setUpdateInterval(100);
+    Gyroscope.setUpdateInterval(100);
+    Magnetometer.setUpdateInterval(100);
+
+    const accelSub = Accelerometer.addListener(setAccelData);
+    const gyroSub = Gyroscope.addListener(setGyroData);
+    const magSub = Magnetometer.addListener(setMagData);
+
+    return () => {
+      accelSub && accelSub.remove();
+      gyroSub && gyroSub.remove();
+      magSub && magSub.remove();
+    };
   }, []);
+
+  const fmt = (val: number) => val?.toFixed(2) ?? '0.00';
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.badge}>KROK 1 / 10</Text>
-        <Text style={styles.title}>Skill Bill - Baseline</Text>
-        <Text style={styles.subtitle}>Test połączenia z iPhonem</Text>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Text style={styles.badge}>KROK 2 / 10</Text>
+        <Text style={styles.title}>Telemetria i Czujniki</Text>
+        <Text style={styles.subtitle}>Odczyt danych z iPhona w czasie rzeczywistym</Text>
 
-        <View style={styles.clockBox}>
-          <Text style={styles.clockLabel}>Czas telefonu:</Text>
-          <Text style={styles.clockValue}>{time}</Text>
+        {/* Akcelerometr */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>📐 Akcelerometr (G-force)</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>X:</Text><Text style={styles.val}>{fmt(ax)}</Text>
+            <Text style={styles.label}>Y:</Text><Text style={styles.val}>{fmt(ay)}</Text>
+            <Text style={styles.label}>Z:</Text><Text style={styles.val}>{fmt(az)}</Text>
+          </View>
         </View>
 
-        <View style={styles.counterBox}>
-          <Text style={styles.counterValue}>{count}</Text>
-          <TouchableOpacity 
-            style={styles.button} 
-            onPress={() => setCount(prev => prev + 1)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.buttonText}>Kliknij (+1)</Text>
-          </TouchableOpacity>
+        {/* Żyroskop */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🔄 Żyroskop (rad/s)</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>X:</Text><Text style={styles.val}>{fmt(gx)}</Text>
+            <Text style={styles.label}>Y:</Text><Text style={styles.val}>{fmt(gy)}</Text>
+            <Text style={styles.label}>Z:</Text><Text style={styles.val}>{fmt(gz)}</Text>
+          </View>
         </View>
-      </View>
+
+        {/* Magnetometr */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🧲 Magnetometr (μT)</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>X:</Text><Text style={styles.val}>{fmt(mx)}</Text>
+            <Text style={styles.label}>Y:</Text><Text style={styles.val}>{fmt(my)}</Text>
+            <Text style={styles.label}>Z:</Text><Text style={styles.val}>{fmt(mz)}</Text>
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -43,25 +71,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0f172a',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
   },
-  card: {
-    width: '100%',
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    padding: 24,
+  scroll: {
+    padding: 20,
     alignItems: 'center',
-    borderColor: '#334155',
-    borderWidth: 1,
   },
   badge: {
     color: '#38bdf8',
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.5,
-    marginBottom: 8,
+    marginTop: 20,
+    marginBottom: 4,
   },
   title: {
     color: '#f8fafc',
@@ -71,47 +92,39 @@ const styles = StyleSheet.create({
   subtitle: {
     color: '#94a3b8',
     fontSize: 14,
-    marginBottom: 24,
-  },
-  clockBox: {
-    backgroundColor: '#0f172a',
-    padding: 16,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
     marginBottom: 20,
   },
-  clockLabel: {
-    color: '#64748b',
-    fontSize: 12,
+  card: {
+    width: '100%',
+    backgroundColor: '#1e293b',
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 16,
+    borderColor: '#334155',
+    borderWidth: 1,
   },
-  clockValue: {
+  cardTitle: {
     color: '#38bdf8',
-    fontSize: 28,
-    fontWeight: '600',
-  },
-  counterBox: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  counterValue: {
-    color: '#f8fafc',
-    fontSize: 48,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 10,
-    width: '100%',
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  label: {
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  val: {
+    color: '#f8fafc',
+    fontSize: 18,
+    fontFamily: 'Courier',
+    fontWeight: 'bold',
+    width: 60,
   },
 });
 
