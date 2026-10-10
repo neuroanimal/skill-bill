@@ -1,60 +1,117 @@
-import React, { useEffect, useState } from 'react';
-import { Text, View, StyleSheet, ActivityIndicator, Button } from 'react-native';
-import { Camera } from 'react-native-vision-camera';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView } from 'react-native';
 
 export default function HomeScreen() {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [count, setCount] = useState(0);
+  const [time, setTime] = useState(new Date().toLocaleTimeString());
 
   useEffect(() => {
-    (async () => {
-      const status = await Camera.getCameraPermissionStatus();
-      setHasPermission(status === 'granted');
-    })();
+    const timer = setInterval(() => {
+      setTime(new Date().toLocaleTimeString());
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  const requestPermission = async () => {
-    const status = await Camera.requestCameraPermission();
-    setHasPermission(status === 'granted');
-  };
-
-  if (hasPermission === null) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.text}>Sprawdzanie uprawnień kamery...</Text>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Skill Bill - Moduł Kamery</Text>
-      <Text style={styles.subText}>
-        Dostęp do kamery: {hasPermission ? '✅ Przyznany' : '❌ Brak dostępu'}
-      </Text>
-      {!hasPermission && (
-        <Button title="Poproś o dostęp do kamery" onPress={requestPermission} />
-      )}
-    </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.badge}>KROK 1 / 10</Text>
+        <Text style={styles.title}>Skill Bill - Baseline</Text>
+        <Text style={styles.subtitle}>Test połączenia z iPhonem</Text>
+
+        <View style={styles.clockBox}>
+          <Text style={styles.clockLabel}>Czas telefonu:</Text>
+          <Text style={styles.clockValue}>{time}</Text>
+        </View>
+
+        <View style={styles.counterBox}>
+          <Text style={styles.counterValue}>{count}</Text>
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={() => setCount(prev => prev + 1)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.buttonText}>Kliknij (+1)</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: '#0f172a',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    justifyContent: 'center',
     padding: 20,
   },
-  text: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 10,
+  card: {
+    width: '100%',
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderColor: '#334155',
+    borderWidth: 1,
   },
-  subText: {
-    fontSize: 16,
-    color: '#555',
+  badge: {
+    color: '#38bdf8',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  title: {
+    color: '#f8fafc',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  subtitle: {
+    color: '#94a3b8',
+    fontSize: 14,
+    marginBottom: 24,
+  },
+  clockBox: {
+    backgroundColor: '#0f172a',
+    padding: 16,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
     marginBottom: 20,
   },
+  clockLabel: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  clockValue: {
+    color: '#38bdf8',
+    fontSize: 28,
+    fontWeight: '600',
+  },
+  counterBox: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  counterValue: {
+    color: '#f8fafc',
+    fontSize: 48,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  button: {
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
+
