@@ -23,13 +23,13 @@ interface MediaItem {
 }
 
 export default function App() {
-  // Stan czujników i nagrywania (Krok 2 & 3)
+  // Sensor and recording state (steps 2 & 3)
   const [isRecording, setIsRecording] = useState(false);
   const [sessionData, setSessionData] = useState<IMURecord[]>([]);
   const [accelData, setAccelData] = useState<SensorData>({ x: 0, y: 0, z: 0 });
   const [gyroData, setGyroData] = useState<SensorData>({ x: 0, y: 0, z: 0 });
 
-  // Stan mediów (Krok 4)
+  // Media state (step 4)
   const [mediaList, setMediaList] = useState<MediaItem[]>([]);
 
   const accelSubscription = useRef<any>(null);
@@ -58,7 +58,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    // ReturnType<typeof setInterval>, not NodeJS.Timeout: in React Native
+    // setInterval returns a number, so the Node typing did not match.
+    let interval: ReturnType<typeof setInterval>;
     if (isRecording) {
       interval = setInterval(() => {
         setSessionData(prev => [
@@ -76,17 +78,17 @@ export default function App() {
 
   const toggleRecording = () => setIsRecording(!isRecording);
 
-  // --- KROK 4: Obsługa Mediów (Zdjęcia / Wideo) ---
+  // --- STEP 4: media handling (photos / videos) ---
   const pickMediaFromGallery = async () => {
-    // Prośba o uprawnienia do biblioteki
+    // Request library permission
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert('Brak uprawnień', 'Potrzebujemy dostępu do galerii, aby wybrać pliki.');
+      Alert.alert('No permission', 'We need access to the gallery in order to pick files.');
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All, // Zdjęcia i wideo
+      mediaTypes: ImagePicker.MediaTypeOptions.All, // photos and videos
       allowsEditing: true,
       quality: 0.8,
     });
@@ -99,10 +101,10 @@ export default function App() {
   };
 
   const captureMediaWithCamera = async () => {
-    // Prośba o uprawnienia do aparatu
+    // Request camera permission
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert('Brak uprawnień', 'Potrzebujemy dostępu do aparatu, aby wykonać materiał.');
+      Alert.alert('No permission', 'We need access to the camera in order to capture material.');
       return;
     }
 
@@ -121,7 +123,7 @@ export default function App() {
 
   const saveAndShareCSV = async () => {
     if (sessionData.length === 0) {
-      Alert.alert('Brak danych', 'Najpierw nagraj próbki czujników.');
+      Alert.alert('No data', 'Record some sensor samples first.');
       return;
     }
 
@@ -151,28 +153,28 @@ export default function App() {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(file.uri, {
           mimeType: 'text/csv',
-          dialogTitle: 'Eksport danych IMU',
+          dialogTitle: 'IMU data export',
           UTI: 'public.comma-separated-values-text',
         });
       } else {
-        Alert.alert('Zapisano', `Plik:\n${file.uri}`);
+        Alert.alert('Saved', `File:\n${file.uri}`);
       }
     } catch (error) {
-      Alert.alert('Błąd', 'Nie udało się zapisać pliku CSV.');
+      Alert.alert('Error', 'Could not save the CSV file.');
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Krok 4: Dostęp do Mediów</Text>
+      <Text style={styles.title}>Step 4: media access</Text>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Czujniki */}
+        {/* Sensors */}
         <View style={styles.card}>
-          <Text style={styles.subtitle}>📐 IMU (Aktualne odczyty)</Text>
-          <Text>Akc: X:{accelData.x.toFixed(2)} Y:{accelData.y.toFixed(2)} Z:{accelData.z.toFixed(2)}</Text>
-          <Text>Żyr: X:{gyroData.x.toFixed(2)} Y:{gyroData.y.toFixed(2)} Z:{gyroData.z.toFixed(2)}</Text>
-          <Text style={{ marginTop: 5, color: '#666' }}>Zebrane próbki: {sessionData.length} ({isRecording ? '🔴 Nagrywanie' : '⏸ Zatrzymane'})</Text>
+          <Text style={styles.subtitle}>📐 IMU (current readings)</Text>
+          <Text>Acc: X:{accelData.x.toFixed(2)} Y:{accelData.y.toFixed(2)} Z:{accelData.z.toFixed(2)}</Text>
+          <Text>Gyr: X:{gyroData.x.toFixed(2)} Y:{gyroData.y.toFixed(2)} Z:{gyroData.z.toFixed(2)}</Text>
+          <Text style={{ marginTop: 5, color: '#666' }}>Samples collected: {sessionData.length} ({isRecording ? '🔴 recording' : '⏸ stopped'})</Text>
           
           <View style={styles.rowButtons}>
             <TouchableOpacity style={[styles.miniButton, isRecording ? styles.btnStop : styles.btnStart]} onPress={toggleRecording}>
@@ -184,21 +186,21 @@ export default function App() {
           </View>
         </View>
 
-        {/* Sterowanie Mediami (Krok 4) */}
+        {/* Media controls (step 4) */}
         <View style={styles.card}>
-          <Text style={styles.subtitle}>📷 Zdjęcia i Wideo</Text>
+          <Text style={styles.subtitle}>📷 Photos and videos</Text>
           <View style={styles.rowButtons}>
             <TouchableOpacity style={[styles.miniButton, styles.btnMedia]} onPress={pickMediaFromGallery}>
-              <Text style={styles.btnText}>📁 Wybierz z galerii</Text>
+              <Text style={styles.btnText}>📁 Pick from gallery</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.miniButton, styles.btnMedia]} onPress={captureMediaWithCamera}>
-              <Text style={styles.btnText}>📸 Zrób zdjęcie/wideo</Text>
+              <Text style={styles.btnText}>📸 Capture photo/video</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Galeria podglądu załadowanych mediów */}
-        <Text style={styles.subtitle2}>Załadowane pliki multimedialne ({mediaList.length}):</Text>
+        {/* Preview gallery of the loaded media */}
+        <Text style={styles.subtitle2}>Loaded media files ({mediaList.length}):</Text>
         <ScrollView horizontal style={styles.mediaContainer}>
           {mediaList.map((item, index) => (
             <View key={index} style={styles.mediaCard}>
@@ -206,14 +208,14 @@ export default function App() {
                 <Image source={{ uri: item.uri }} style={styles.mediaPreview} />
               ) : (
                 <View style={[styles.mediaPreview, styles.videoPlaceholder]}>
-                  <Text style={styles.videoText}>▶ WIDEO</Text>
+                  <Text style={styles.videoText}>▶ VIDEO</Text>
                 </View>
               )}
               <Text style={styles.mediaLabel}>#{index + 1} ({item.type})</Text>
             </View>
           ))}
           {mediaList.length === 0 && (
-            <Text style={styles.emptyText}>Brak załadowanych mediów. Wybierz lub zrób zdjęcie.</Text>
+            <Text style={styles.emptyText}>No media loaded. Pick one or take a photo.</Text>
           )}
         </ScrollView>
       </ScrollView>
