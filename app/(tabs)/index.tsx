@@ -103,37 +103,46 @@ export default function HomeScreen() {
     }
   };
 
-  const saveAndShareCSV = async () => {
-    if (recordedDataRef.current.length === 0) {
-      Alert.alert('Brak danych', 'Najpierw nagraj sesję przyciskiem START.');
-      return;
-    }
+import { Directory, File } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
-    try {
-      let csvContent = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n';
-      recordedDataRef.current.forEach((r) => {
-        csvContent += `${r.timestamp},${r.ax.toFixed(4)},${r.ay.toFixed(4)},${r.az.toFixed(4)},${r.gx.toFixed(4)},${r.gy.toFixed(4)},${r.gz.toFixed(4)},${r.mx.toFixed(2)},${r.my.toFixed(2)},${r.mz.toFixed(2)}\n`;
+// ... reszta komponentu ...
+
+const saveAndShareCSV = async () => {
+  if (recordedDataRef.current.length === 0) {
+    Alert.alert('Brak danych', 'Najpierw nagraj sesję przyciskiem START.');
+    return;
+  }
+
+  try {
+    // 1. Przygotowanie treści CSV
+    let csvContent = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n';
+    recordedDataRef.current.forEach((r) => {
+      csvContent += `${r.timestamp},${r.ax.toFixed(4)},${r.ay.toFixed(4)},${r.az.toFixed(4)},${r.gx.toFixed(4)},${r.gy.toFixed(4)},${r.gz.toFixed(4)},${r.mx.toFixed(2)},${r.my.toFixed(2)},${r.mz.toFixed(2)}\n`;
+    });
+
+    // 2. Utworzenie pliku w katalogu dokumentów aplikacji (Nowe API)
+    const fileName = `imu_session_${Date.now()}.csv`;
+    const file = new File(Directory.document, fileName);
+
+    // 3. Utworzenie pliku na dysku i zapis danych
+    file.create();
+    file.write(csvContent);
+
+    // 4. Udostępnienie pliku przez uri
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(file.uri, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Eksportuj dane IMU',
+        UTI: 'public.comma-separated-values-text',
       });
-
-      const fileName = `imu_session_${Date.now()}.csv`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-
-      // Zapis bez opcji encoding – domyślnie jest to UTF-8
-      await FileSystem.writeAsStringAsync(fileUri, csvContent);
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Eksportuj dane IMU',
-          UTI: 'public.comma-separated-values-text',
-        });
-      } else {
-        Alert.alert('Zapisano plik', `Lokalizacja:\n${fileUri}`);
-      }
-    } catch (err) {
-      Alert.alert('Błąd zapisu', String(err));
+    } else {
+      Alert.alert('Zapisano plik', `Lokalizacja:\n${file.uri}`);
     }
-  };
+  } catch (err) {
+    Alert.alert('Błąd zapisu', String(err));
+  }
+};
 
   const renderOscilloscope = (history: Vector3[], scaleMax: number) => {
     if (history.length === 0) return null;
