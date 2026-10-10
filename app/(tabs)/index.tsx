@@ -110,35 +110,38 @@ export default function HomeScreen() {
     }
 
     try {
-      // 1. Tworzenie zawartości pliku CSV
+      // 1. Budowanie treści CSV
       let csvContent = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n';
       recordedDataRef.current.forEach((r) => {
         csvContent += `${r.timestamp},${r.ax.toFixed(4)},${r.ay.toFixed(4)},${r.az.toFixed(4)},${r.gx.toFixed(4)},${r.gy.toFixed(4)},${r.gz.toFixed(4)},${r.mx.toFixed(2)},${r.my.toFixed(2)},${r.mz.toFixed(2)}\n`;
       });
 
-      // 2. Utworzenie pliku w docelowej ścieżce (Nowe API FileSystem)
+      // 2. Ścieżka katalogu i pliku
       const fileName = `imu_session_${Date.now()}.csv`;
+      // Pobieramy URI katalogu dokumentów z wyeliminowaniem błędów undefined
+      const dirUri = Directory.document.uri;
+      const fileUri = `${dirUri}${fileName}`;
+
+      // 3. Utworzenie i zapis pliku
       const file = new File(Directory.document, fileName);
-
-      // Utworzenie pliku i zapis danych z wybranym typem MIME
       file.create();
-      file.write(new Blob([csvContent], { type: 'text/csv' }));
+      file.write(csvContent);
 
-      // 3. Udostępnienie pliku natywnym arkuszem iOS / Android
+      // 4. Udostępnienie pliku przez pewny `fileUri`
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, {
+        await Sharing.shareAsync(fileUri, {
           mimeType: 'text/csv',
           dialogTitle: 'Eksportuj dane IMU',
           UTI: 'public.comma-separated-values-text',
         });
       } else {
-        Alert.alert('Zapisano plik', `Lokalizacja:\n${file.uri}`);
+        Alert.alert('Zapisano plik', `Lokalizacja:\n${fileUri}`);
       }
     } catch (err) {
       Alert.alert('Błąd zapisu', String(err));
     }
   };
-
+ 
   const renderOscilloscope = (history: Vector3[], scaleMax: number) => {
     if (history.length === 0) return null;
     const step = GRAPH_WIDTH / (MAX_SAMPLES - 1);
