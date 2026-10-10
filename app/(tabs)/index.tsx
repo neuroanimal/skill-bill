@@ -118,9 +118,8 @@ export default function HomeScreen() {
       const fileName = `imu_session_${Date.now()}.csv`;
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
-      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      // Zapis bez opcji encoding – domyślnie jest to UTF-8
+      await FileSystem.writeAsStringAsync(fileUri, csvContent);
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
