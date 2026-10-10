@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Accelerometer, Gyroscope, Magnetometer } from 'expo-sensors';
 import Svg, { Polyline, Line, Circle } from 'react-native-svg';
-import { Directory, File } from 'expo-file-system';
+import { Directory, File } from 'expo-file-system/next';
 import * as Sharing from 'expo-sharing';
 
 const MAX_SAMPLES = 50;
@@ -67,7 +67,7 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Interwał zapisu próbek podczas nagrywania (20 Hz)
+  // Interwał zapisu próbek (20 Hz)
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (isRecording) {
@@ -103,43 +103,41 @@ export default function HomeScreen() {
     }
   };
 
-// ... reszta komponentu ...
-
-const saveAndShareCSV = async () => {
-  if (recordedDataRef.current.length === 0) {
-    Alert.alert('Brak danych', 'Najpierw nagraj sesję przyciskiem START.');
-    return;
-  }
-
-  try {
-    // 1. Przygotowanie treści CSV
-    let csvContent = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n';
-    recordedDataRef.current.forEach((r) => {
-      csvContent += `${r.timestamp},${r.ax.toFixed(4)},${r.ay.toFixed(4)},${r.az.toFixed(4)},${r.gx.toFixed(4)},${r.gy.toFixed(4)},${r.gz.toFixed(4)},${r.mx.toFixed(2)},${r.my.toFixed(2)},${r.mz.toFixed(2)}\n`;
-    });
-
-    // 2. Utworzenie pliku w katalogu dokumentów aplikacji (Nowe API)
-    const fileName = `imu_session_${Date.now()}.csv`;
-    const file = new File(Directory.document, fileName);
-
-    // 3. Utworzenie pliku na dysku i zapis danych
-    file.create();
-    file.write(csvContent);
-
-    // 4. Udostępnienie pliku przez uri
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(file.uri, {
-        mimeType: 'text/csv',
-        dialogTitle: 'Eksportuj dane IMU',
-        UTI: 'public.comma-separated-values-text',
-      });
-    } else {
-      Alert.alert('Zapisano plik', `Lokalizacja:\n${file.uri}`);
+  const saveAndShareCSV = async () => {
+    if (recordedDataRef.current.length === 0) {
+      Alert.alert('Brak danych', 'Najpierw nagraj sesję przyciskiem START.');
+      return;
     }
-  } catch (err) {
-    Alert.alert('Błąd zapisu', String(err));
-  }
-};
+
+    try {
+      // 1. Tworzenie zawartości pliku CSV
+      let csvContent = 'timestamp,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n';
+      recordedDataRef.current.forEach((r) => {
+        csvContent += `${r.timestamp},${r.ax.toFixed(4)},${r.ay.toFixed(4)},${r.az.toFixed(4)},${r.gx.toFixed(4)},${r.gy.toFixed(4)},${r.gz.toFixed(4)},${r.mx.toFixed(2)},${r.my.toFixed(2)},${r.mz.toFixed(2)}\n`;
+      });
+
+      // 2. Utworzenie pliku w docelowej ścieżce (Nowe API FileSystem)
+      const fileName = `imu_session_${Date.now()}.csv`;
+      const file = new File(Directory.document, fileName);
+
+      // Utworzenie pliku i zapis danych z wybranym typem MIME
+      file.create();
+      file.write(new Blob([csvContent], { type: 'text/csv' }));
+
+      // 3. Udostępnienie pliku natywnym arkuszem iOS / Android
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Eksportuj dane IMU',
+          UTI: 'public.comma-separated-values-text',
+        });
+      } else {
+        Alert.alert('Zapisano plik', `Lokalizacja:\n${file.uri}`);
+      }
+    } catch (err) {
+      Alert.alert('Błąd zapisu', String(err));
+    }
+  };
 
   const renderOscilloscope = (history: Vector3[], scaleMax: number) => {
     if (history.length === 0) return null;
@@ -195,7 +193,7 @@ const saveAndShareCSV = async () => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.badge}>KROK 3.1 & 3.2 / 10</Text>
+        <Text style={styles.badge}>KROK 3 / 10</Text>
         <Text style={styles.title}>Rejestracja i Eksport CSV</Text>
 
         {/* --- PRZYCISKI STEROWANIA --- */}
@@ -305,7 +303,7 @@ const styles = StyleSheet.create({
   oscBox: { flex: 1, marginLeft: 8, alignItems: 'center' },
   legend: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justify.content: 'space-around',
     width: '100%',
     marginBottom: 2,
     fontFamily: 'Courier',
