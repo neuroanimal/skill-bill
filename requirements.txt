@@ -1,0 +1,12 @@
+torch
+torchvision
+transformers
+easyocr
+paddleocr
+surya-ocr
+pytesseract
+opencv-python
+Pillow
+qwen-vl-utils
+accelerate
+openai

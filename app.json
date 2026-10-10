@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.neuroanimal.skillbill",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Ta aplikacja wymaga dostępu do kamery, aby skanować kwoty z paragonów w czasie rzeczywistym bez zapisywania zdjęć."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -43,6 +47,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5ee09b6a-e9f8-49d1-9b7e-5a46348c32da"
+      }
+    },
+    "owner": "neuroanimal"
   }
 }
